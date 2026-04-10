@@ -349,6 +349,7 @@ pub(crate) struct ProcessedTranscription {
     pub final_text: String,
     pub post_processed_text: Option<String>,
     pub post_process_prompt: Option<String>,
+    pub post_process_prompt_name: Option<String>,
 }
 
 pub(crate) async fn process_transcription_output(
@@ -360,6 +361,7 @@ pub(crate) async fn process_transcription_output(
     let mut final_text = transcription.to_string();
     let mut post_processed_text: Option<String> = None;
     let mut post_process_prompt: Option<String> = None;
+    let mut post_process_prompt_name: Option<String> = None;
 
     if let Some(converted_text) = maybe_convert_chinese_variant(&settings, transcription).await {
         final_text = converted_text;
@@ -377,6 +379,7 @@ pub(crate) async fn process_transcription_output(
                     .find(|prompt| &prompt.id == prompt_id)
                 {
                     post_process_prompt = Some(prompt.prompt.clone());
+                    post_process_prompt_name = Some(prompt.name.clone());
                 }
             }
         }
@@ -388,6 +391,7 @@ pub(crate) async fn process_transcription_output(
         final_text,
         post_processed_text,
         post_process_prompt,
+        post_process_prompt_name,
     }
 }
 
@@ -599,6 +603,7 @@ impl ShortcutAction for TranscribeAction {
                                     post_process,
                                     processed.post_processed_text.clone(),
                                     processed.post_process_prompt.clone(),
+                                    processed.post_process_prompt_name.clone(),
                                 ) {
                                     error!("Failed to save history entry: {}", err);
                                 }
@@ -640,6 +645,7 @@ impl ShortcutAction for TranscribeAction {
                                     file_name,
                                     String::new(),
                                     post_process,
+                                    None,
                                     None,
                                     None,
                                 ) {

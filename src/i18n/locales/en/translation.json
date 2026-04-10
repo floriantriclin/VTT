@@ -436,7 +436,10 @@
       "retranscribe": "Re-transcribe",
       "retranscribeError": "Failed to re-transcribe. Please try again.",
       "transcribing": "Transcribing...",
-      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon."
+      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon.",
+      "postProcessed": "Post-processed",
+      "postProcessedWith": "Post-processed with {{profile}}",
+      "copyPostProcessed": "Copy post-processed text"
     },
     "debug": {
       "title": "Debug",
