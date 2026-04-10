@@ -72,20 +72,6 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
         }
     };
 
-    let model = settings
-        .post_process_models
-        .get(&provider.id)
-        .cloned()
-        .unwrap_or_default();
-
-    if model.trim().is_empty() {
-        debug!(
-            "Post-processing skipped because provider '{}' has no model configured",
-            provider.id
-        );
-        return None;
-    }
-
     let selected_prompt_id = match &settings.post_process_selected_prompt_id {
         Some(id) => id.clone(),
         None => {
@@ -94,12 +80,12 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
         }
     };
 
-    let prompt = match settings
+    let (prompt, prompt_model_override) = match settings
         .post_process_prompts
         .iter()
         .find(|prompt| prompt.id == selected_prompt_id)
     {
-        Some(prompt) => prompt.prompt.clone(),
+        Some(prompt) => (prompt.prompt.clone(), prompt.model.clone()),
         None => {
             debug!(
                 "Post-processing skipped because prompt '{}' was not found",
@@ -108,6 +94,25 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
             return None;
         }
     };
+
+    // Use per-prompt model override if set, otherwise fall back to the provider's default model.
+    let model = prompt_model_override
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| {
+            settings
+                .post_process_models
+                .get(&provider.id)
+                .cloned()
+                .unwrap_or_default()
+        });
+
+    if model.trim().is_empty() {
+        debug!(
+            "Post-processing skipped because provider '{}' has no model configured (and prompt has no override)",
+            provider.id
+        );
+        return None;
+    }
 
     if prompt.trim().is_empty() {
         debug!("Post-processing skipped because the selected prompt is empty");
@@ -344,6 +349,7 @@ pub(crate) struct ProcessedTranscription {
     pub final_text: String,
     pub post_processed_text: Option<String>,
     pub post_process_prompt: Option<String>,
+    pub post_process_prompt_name: Option<String>,
 }
 
 pub(crate) async fn process_transcription_output(
@@ -355,6 +361,7 @@ pub(crate) async fn process_transcription_output(
     let mut final_text = transcription.to_string();
     let mut post_processed_text: Option<String> = None;
     let mut post_process_prompt: Option<String> = None;
+    let mut post_process_prompt_name: Option<String> = None;
 
     if let Some(converted_text) = maybe_convert_chinese_variant(&settings, transcription).await {
         final_text = converted_text;
@@ -372,6 +379,7 @@ pub(crate) async fn process_transcription_output(
                     .find(|prompt| &prompt.id == prompt_id)
                 {
                     post_process_prompt = Some(prompt.prompt.clone());
+                    post_process_prompt_name = Some(prompt.name.clone());
                 }
             }
         }
@@ -383,6 +391,7 @@ pub(crate) async fn process_transcription_output(
         final_text,
         post_processed_text,
         post_process_prompt,
+        post_process_prompt_name,
     }
 }
 
@@ -406,7 +415,7 @@ impl ShortcutAction for TranscribeAction {
 
         let binding_id = binding_id.to_string();
         change_tray_icon(app, TrayIconState::Recording);
-        show_recording_overlay(app);
+        show_recording_overlay(app, self.post_process);
 
         // Get the microphone mode to determine audio feedback timing
         let settings = get_settings(app);
@@ -502,7 +511,7 @@ impl ShortcutAction for TranscribeAction {
         let hm = Arc::clone(&app.state::<Arc<HistoryManager>>());
 
         change_tray_icon(app, TrayIconState::Transcribing);
-        show_transcribing_overlay(app);
+        show_transcribing_overlay(app, self.post_process);
 
         // Unmute before playing audio feedback so the stop sound is audible
         rm.remove_mute();
@@ -594,6 +603,7 @@ impl ShortcutAction for TranscribeAction {
                                     post_process,
                                     processed.post_processed_text.clone(),
                                     processed.post_process_prompt.clone(),
+                                    processed.post_process_prompt_name.clone(),
                                 ) {
                                     error!("Failed to save history entry: {}", err);
                                 }
@@ -637,6 +647,7 @@ impl ShortcutAction for TranscribeAction {
                                     post_process,
                                     None,
                                     None,
+                                    None,
                                 ) {
                                     error!("Failed to save failed history entry: {}", save_err);
                                 }
@@ -657,6 +668,59 @@ impl ShortcutAction for TranscribeAction {
             "TranscribeAction::stop completed in {:?}",
             stop_time.elapsed()
         );
+    }
+}
+
+// Profile Transcribe Action
+//
+// Like TranscribeAction { post_process: true } but first sets the selected
+// prompt to the one at `profile_index` (1-based) in post_process_prompts.
+// Used for Ctrl+1, Ctrl+2... shortcuts that switch profile and transcribe
+// with post-processing in a single keypress.
+struct ProfileTranscribeAction {
+    profile_index: usize,
+}
+
+impl ProfileTranscribeAction {
+    /// Sets the selected prompt to the profile at `profile_index - 1`.
+    /// Returns true if the profile exists and was selected.
+    fn select_profile(&self, app: &AppHandle) -> bool {
+        let mut settings = get_settings(app);
+        let index = self.profile_index.saturating_sub(1);
+        match settings.post_process_prompts.get(index) {
+            Some(prompt) => {
+                let prompt_id = prompt.id.clone();
+                let prompt_name = prompt.name.clone();
+                settings.post_process_selected_prompt_id = Some(prompt_id);
+                crate::settings::write_settings(app, settings);
+                debug!(
+                    "ProfileTranscribeAction selected profile {} ('{}')",
+                    self.profile_index, prompt_name
+                );
+                true
+            }
+            None => {
+                warn!(
+                    "ProfileTranscribeAction: profile {} does not exist (only {} prompts configured)",
+                    self.profile_index,
+                    settings.post_process_prompts.len()
+                );
+                false
+            }
+        }
+    }
+}
+
+impl ShortcutAction for ProfileTranscribeAction {
+    fn start(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str) {
+        if !self.select_profile(app) {
+            return;
+        }
+        TranscribeAction { post_process: true }.start(app, binding_id, shortcut_str);
+    }
+
+    fn stop(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str) {
+        TranscribeAction { post_process: true }.stop(app, binding_id, shortcut_str);
     }
 }
 
@@ -696,6 +760,14 @@ impl ShortcutAction for TestAction {
     }
 }
 
+/// Maximum number of post-processing profiles accessible via Ctrl+1..Ctrl+N shortcuts.
+pub const MAX_PROFILE_SHORTCUTS: usize = 9;
+
+/// Binding ID for the Nth (1-based) profile shortcut.
+pub fn profile_binding_id(profile_index: usize) -> String {
+    format!("transcribe_with_profile_{}", profile_index)
+}
+
 // Static Action Map
 pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::new(|| {
     let mut map = HashMap::new();
@@ -717,5 +789,12 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
         "test".to_string(),
         Arc::new(TestAction) as Arc<dyn ShortcutAction>,
     );
+    // Register profile shortcuts (Ctrl+1..Ctrl+MAX_PROFILE_SHORTCUTS).
+    for i in 1..=MAX_PROFILE_SHORTCUTS {
+        map.insert(
+            profile_binding_id(i),
+            Arc::new(ProfileTranscribeAction { profile_index: i }) as Arc<dyn ShortcutAction>,
+        );
+    }
     map
 });

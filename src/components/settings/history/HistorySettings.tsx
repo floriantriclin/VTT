@@ -314,6 +314,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   const [retrying, setRetrying] = useState(false);
 
   const hasTranscription = entry.transcription_text.trim().length > 0;
+  const postProcessedText = entry.post_processed_text?.trim() ?? "";
+  const hasPostProcessed =
+    postProcessedText.length > 0 &&
+    postProcessedText !== entry.transcription_text.trim();
+  const [showPpCopied, setShowPpCopied] = useState(false);
 
   const handleLoadAudio = useCallback(
     () => getAudioUrl(entry.file_name),
@@ -328,6 +333,17 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     onCopyText();
     setShowCopied(true);
     setTimeout(() => setShowCopied(false), 2000);
+  };
+
+  const handleCopyPostProcessed = async () => {
+    if (!hasPostProcessed) return;
+    try {
+      await navigator.clipboard.writeText(entry.post_processed_text ?? "");
+      setShowPpCopied(true);
+      setTimeout(() => setShowPpCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy post-processed text:", error);
+    }
   };
 
   const handleDeleteEntry = async () => {
@@ -438,6 +454,33 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             ? entry.transcription_text
             : t("settings.history.transcriptionFailed")}
       </p>
+
+      {!retrying && hasPostProcessed && (
+        <div className="border-t border-mid-gray/20 pt-2 flex flex-col gap-1">
+          <div className="flex justify-between items-center">
+            <p className="text-xs font-medium text-logo-primary/80">
+              {entry.post_process_prompt_name
+                ? t("settings.history.postProcessedWith", {
+                    profile: entry.post_process_prompt_name,
+                  })
+                : t("settings.history.postProcessed")}
+            </p>
+            <IconButton
+              onClick={handleCopyPostProcessed}
+              title={t("settings.history.copyPostProcessed")}
+            >
+              {showPpCopied ? (
+                <Check width={14} height={14} />
+              ) : (
+                <Copy width={14} height={14} />
+              )}
+            </IconButton>
+          </div>
+          <p className="text-sm text-text/90 select-text cursor-text whitespace-pre-wrap break-words">
+            {entry.post_processed_text}
+          </p>
+        </div>
+      )}
 
       <AudioPlayer onLoadRequest={handleLoadAudio} className="w-full" />
     </div>

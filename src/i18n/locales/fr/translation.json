@@ -415,7 +415,12 @@
         "createPrompt": "Créer le prompt",
         "cancel": "Annuler",
         "selectToEdit": "Sélectionnez un prompt ci-dessus pour voir et modifier ses détails.",
-        "createFirst": "Cliquez sur 'Créer un nouveau prompt' ci-dessus pour créer votre premier prompt de post-traitement."
+        "createFirst": "Cliquez sur 'Créer un nouveau prompt' ci-dessus pour créer votre premier prompt de post-traitement.",
+        "modelOverride": {
+          "label": "Modèle personnalisé (optionnel)",
+          "placeholder": "ex. gpt-4o-mini",
+          "description": "Si défini, ce modèle sera utilisé à la place du modèle par défaut du fournisseur pour ce prompt."
+        }
       }
     },
     "history": {
@@ -431,7 +436,10 @@
       "retranscribe": "Re-transcrire",
       "retranscribeError": "Impossible de re-transcrire. Veuillez réessayer.",
       "transcribing": "Transcription en cours...",
-      "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai."
+      "transcriptionFailed": "La transcription a échoué. Vous pouvez re-transcrire en utilisant l'icône de réessai.",
+      "postProcessed": "Post-traité",
+      "postProcessedWith": "Post-traité avec {{profile}}",
+      "copyPostProcessed": "Copier le texte post-traité"
     },
     "debug": {
       "title": "Débogage",

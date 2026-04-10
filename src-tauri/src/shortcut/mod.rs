@@ -74,6 +74,42 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
     }
 }
 
+/// Re-register the post-processing profile shortcuts (Ctrl+1..Ctrl+N).
+///
+/// Called at startup and whenever the prompt list changes (add/delete).
+/// Unregisters every profile shortcut first to make the operation idempotent,
+/// then registers only those that correspond to an existing prompt (and only
+/// when post-processing is enabled).
+pub fn register_profile_shortcuts(app: &AppHandle) {
+    let settings = get_settings(app);
+    let prompt_count = settings.post_process_prompts.len();
+    let enabled = settings.post_process_enabled;
+
+    for i in 1..=crate::actions::MAX_PROFILE_SHORTCUTS {
+        let id = crate::actions::profile_binding_id(i);
+
+        // Always unregister first so this function is idempotent.
+        if let Some(binding) = settings.bindings.get(&id).cloned() {
+            let _ = unregister_shortcut(app, binding);
+        }
+
+        // Then register again only if the profile exists and PP is enabled.
+        if enabled && i <= prompt_count {
+            let binding = settings
+                .bindings
+                .get(&id)
+                .cloned()
+                .or_else(|| settings::get_default_settings().bindings.get(&id).cloned());
+
+            if let Some(binding) = binding {
+                if let Err(e) = register_shortcut(app, binding) {
+                    warn!("Failed to (re-)register profile shortcut {}: {}", id, e);
+                }
+            }
+        }
+    }
+}
+
 /// Register a shortcut using the appropriate implementation
 pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
     let settings = get_settings(app);
@@ -812,6 +848,9 @@ pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Res
         }
     }
 
+    // Register/unregister all Ctrl+N profile shortcuts based on the new state.
+    register_profile_shortcuts(&app);
+
     Ok(())
 }
 
@@ -912,6 +951,7 @@ pub fn add_post_process_prompt(
     app: AppHandle,
     name: String,
     prompt: String,
+    model: Option<String>,
 ) -> Result<LLMPrompt, String> {
     let mut settings = settings::get_settings(&app);
 
@@ -922,10 +962,14 @@ pub fn add_post_process_prompt(
         id: id.clone(),
         name,
         prompt,
+        model,
     };
 
     settings.post_process_prompts.push(new_prompt.clone());
     settings::write_settings(&app, settings);
+
+    // Re-register Ctrl+N profile shortcuts since the prompt list changed
+    let _ = crate::shortcut::register_profile_shortcuts(&app);
 
     Ok(new_prompt)
 }
@@ -937,6 +981,7 @@ pub fn update_post_process_prompt(
     id: String,
     name: String,
     prompt: String,
+    model: Option<String>,
 ) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
 
@@ -947,6 +992,7 @@ pub fn update_post_process_prompt(
     {
         existing_prompt.name = name;
         existing_prompt.prompt = prompt;
+        existing_prompt.model = model;
         settings::write_settings(&app, settings);
         Ok(())
     } else {
@@ -979,6 +1025,10 @@ pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), Stri
     }
 
     settings::write_settings(&app, settings);
+
+    // Re-register Ctrl+N profile shortcuts since the prompt list changed
+    let _ = crate::shortcut::register_profile_shortcuts(&app);
+
     Ok(())
 }
 

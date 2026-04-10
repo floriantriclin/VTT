@@ -1,25 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, Trash2 } from "lucide-react";
 import { commands } from "@/bindings";
 
 import { Alert } from "../../ui/Alert";
-import {
-  Dropdown,
-  SettingContainer,
-  SettingsGroup,
-  Textarea,
-} from "@/components/ui";
+import { SettingContainer, SettingsGroup, Textarea } from "@/components/ui";
 import { Button } from "../../ui/Button";
 import { ResetButton } from "../../ui/ResetButton";
 import { Input } from "../../ui/Input";
+import { formatKeyCombination } from "../../../lib/utils/keyboard";
+import { useOsType } from "../../../hooks/useOsType";
 
 import { ProviderSelect } from "../PostProcessingSettingsApi/ProviderSelect";
 import { BaseUrlField } from "../PostProcessingSettingsApi/BaseUrlField";
 import { ApiKeyField } from "../PostProcessingSettingsApi/ApiKeyField";
 import { ModelSelect } from "../PostProcessingSettingsApi/ModelSelect";
 import { usePostProcessProviderState } from "../PostProcessingSettingsApi/usePostProcessProviderState";
-import { ShortcutInput } from "../ShortcutInput";
 import { useSettings } from "../../../hooks/useSettings";
 
 const PostProcessingSettingsApiComponent: React.FC = () => {
@@ -147,6 +143,7 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting, updateSetting, isUpdating, refreshSettings } =
     useSettings();
+  const osType = useOsType();
   const [isCreating, setIsCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftText, setDraftText] = useState("");
@@ -155,6 +152,7 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
   const selectedPromptId = getSetting("post_process_selected_prompt_id") || "";
   const selectedPrompt =
     prompts.find((prompt) => prompt.id === selectedPromptId) || null;
+  const bindings = getSetting("bindings") || {};
 
   useEffect(() => {
     if (isCreating) return;
@@ -166,12 +164,7 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
       setDraftName("");
       setDraftText("");
     }
-  }, [
-    isCreating,
-    selectedPromptId,
-    selectedPrompt?.name,
-    selectedPrompt?.prompt,
-  ]);
+  }, [isCreating, selectedPromptId, selectedPrompt?.name, selectedPrompt?.prompt]);
 
   const handlePromptSelect = (promptId: string | null) => {
     if (!promptId) return;
@@ -186,6 +179,7 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
       const result = await commands.addPostProcessPrompt(
         draftName.trim(),
         draftText.trim(),
+        null,
       );
       if (result.status === "ok") {
         await refreshSettings();
@@ -205,6 +199,7 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
         selectedPromptId,
         draftName.trim(),
         draftText.trim(),
+        null,
       );
       await refreshSettings();
     } catch (error) {
@@ -258,31 +253,81 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
       grouped={true}
     >
       <div className="space-y-3">
-        <div className="flex gap-2">
-          <Dropdown
-            selectedValue={selectedPromptId || null}
-            options={prompts.map((p) => ({
-              value: p.id,
-              label: p.name,
-            }))}
-            onSelect={(value) => handlePromptSelect(value)}
-            placeholder={
-              prompts.length === 0
-                ? t("settings.postProcessing.prompts.noPrompts")
-                : t("settings.postProcessing.prompts.selectPrompt")
-            }
-            disabled={
-              isUpdating("post_process_selected_prompt_id") || isCreating
-            }
-            className="flex-1"
-          />
+        <div className="flex flex-col gap-1">
+          {prompts.length === 0 && (
+            <div className="px-3 py-2 text-sm text-mid-gray">
+              {t("settings.postProcessing.prompts.noPrompts")}
+            </div>
+          )}
+          {prompts.map((prompt, idx) => {
+            const profileIndex = idx + 1;
+            const bindingId = `transcribe_with_profile_${profileIndex}`;
+            const binding = bindings[bindingId];
+            const shortcut = binding?.current_binding
+              ? formatKeyCombination(binding.current_binding, osType)
+              : null;
+            const isSelected =
+              !isCreating && prompt.id === selectedPromptId;
+            return (
+              <div
+                key={prompt.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => handlePromptSelect(prompt.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handlePromptSelect(prompt.id);
+                  }
+                }}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer border transition-colors ${
+                  isSelected
+                    ? "bg-logo-primary/10 border-logo-primary/40"
+                    : "bg-background border-mid-gray/20 hover:bg-mid-gray/5"
+                }`}
+              >
+                <span
+                  className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                    isSelected
+                      ? "bg-logo-primary text-white"
+                      : "bg-mid-gray/20 text-text/70"
+                  }`}
+                >
+                  {profileIndex}
+                </span>
+                <span className="flex-1 text-sm font-medium truncate">
+                  {prompt.name}
+                </span>
+                {shortcut && (
+                  <span className="text-xs text-text/60 font-mono px-2 py-0.5 bg-mid-gray/10 rounded">
+                    {shortcut}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeletePrompt(prompt.id);
+                  }}
+                  disabled={prompts.length <= 1}
+                  title={t("settings.postProcessing.prompts.deletePrompt")}
+                  className="p-1 rounded hover:bg-mid-gray/20 text-text/50 hover:text-text disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <Trash2 width={14} height={14} />
+                </button>
+              </div>
+            );
+          })}
           <Button
             onClick={handleStartCreate}
-            variant="primary"
+            variant="secondary"
             size="md"
-            disabled={isCreating}
+            disabled={
+              isCreating || isUpdating("post_process_selected_prompt_id")
+            }
+            className="mt-1"
           >
-            {t("settings.postProcessing.prompts.createNew")}
+            + {t("settings.postProcessing.prompts.createNew")}
           </Button>
         </div>
 
@@ -330,14 +375,6 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
                 disabled={!draftName.trim() || !draftText.trim() || !isDirty}
               >
                 {t("settings.postProcessing.prompts.updatePrompt")}
-              </Button>
-              <Button
-                onClick={() => handleDeletePrompt(selectedPromptId)}
-                variant="secondary"
-                size="md"
-                disabled={!selectedPromptId || prompts.length <= 1}
-              >
-                {t("settings.postProcessing.prompts.deletePrompt")}
               </Button>
             </div>
           </div>
@@ -428,14 +465,6 @@ export const PostProcessingSettings: React.FC = () => {
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
-      <SettingsGroup title={t("settings.postProcessing.hotkey.title")}>
-        <ShortcutInput
-          shortcutId="transcribe_with_post_process"
-          descriptionMode="tooltip"
-          grouped={true}
-        />
-      </SettingsGroup>
-
       <SettingsGroup title={t("settings.postProcessing.api.title")}>
         <PostProcessingSettingsApi />
       </SettingsGroup>

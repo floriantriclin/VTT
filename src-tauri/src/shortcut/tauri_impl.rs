@@ -18,6 +18,8 @@ pub fn init_shortcuts(app: &AppHandle) {
     let default_bindings = settings::get_default_settings().bindings;
     let user_settings = settings::load_or_create_app_settings(app);
 
+    let prompt_count = user_settings.post_process_prompts.len();
+
     // Register all default shortcuts, applying user customizations
     for (id, default_binding) in default_bindings {
         if id == "cancel" {
@@ -27,6 +29,14 @@ pub fn init_shortcuts(app: &AppHandle) {
         if id == "transcribe_with_post_process" && !user_settings.post_process_enabled {
             continue;
         }
+        // Skip profile shortcuts when post-processing is disabled, or when
+        // there is no prompt at the corresponding index.
+        if let Some(profile_index) = parse_profile_binding_id(&id) {
+            if !user_settings.post_process_enabled || profile_index > prompt_count {
+                continue;
+            }
+        }
+
         let binding = user_settings
             .bindings
             .get(&id)
@@ -37,6 +47,12 @@ pub fn init_shortcuts(app: &AppHandle) {
             error!("Failed to register shortcut {} during init: {}", id, e);
         }
     }
+}
+
+/// If the binding id matches `transcribe_with_profile_N`, returns N.
+fn parse_profile_binding_id(id: &str) -> Option<usize> {
+    id.strip_prefix("transcribe_with_profile_")
+        .and_then(|n| n.parse::<usize>().ok())
 }
 
 /// Validate a shortcut string for the Tauri global-shortcut implementation.

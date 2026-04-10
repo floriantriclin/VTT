@@ -415,7 +415,12 @@
         "createPrompt": "Crear Prompt",
         "cancel": "Cancelar",
         "selectToEdit": "Selecciona un prompt arriba para ver y editar sus detalles.",
-        "createFirst": "Haz clic en 'Crear Nuevo Prompt' arriba para crear tu primer prompt de post procesamiento."
+        "createFirst": "Haz clic en 'Crear Nuevo Prompt' arriba para crear tu primer prompt de post procesamiento.",
+        "modelOverride": {
+          "label": "Modelo personalizado (opcional)",
+          "placeholder": "ej. gpt-4o-mini",
+          "description": "Si se define, se usará este modelo en lugar del modelo predeterminado del proveedor para este prompt."
+        }
       }
     },
     "history": {
@@ -431,7 +436,10 @@
       "retranscribe": "Re-transcribir",
       "retranscribeError": "No se pudo re-transcribir. Por favor, inténtalo de nuevo.",
       "transcribing": "Transcribiendo...",
-      "transcriptionFailed": "La transcripción falló. Puedes re-transcribir usando el ícono de reintentar."
+      "transcriptionFailed": "La transcripción falló. Puedes re-transcribir usando el ícono de reintentar.",
+      "postProcessed": "Post-procesado",
+      "postProcessedWith": "Post-procesado con {{profile}}",
+      "copyPostProcessed": "Copiar texto post-procesado"
     },
     "debug": {
       "title": "Depuración",

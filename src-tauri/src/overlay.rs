@@ -313,12 +313,41 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
     }
 }
 
-fn show_overlay_state(app_handle: &AppHandle, state: &str) {
+/// Payload sent to the overlay frontend via the `show-overlay` event.
+///
+/// The `profile_*` fields are populated when the current recording will
+/// apply a post-processing profile, so the overlay can display a small
+/// badge indicating which profile is active.
+#[derive(serde::Serialize, Clone)]
+struct ShowOverlayPayload {
+    state: String,
+    profile_index: Option<u8>,
+    profile_name: Option<String>,
+}
+
+fn show_overlay_state(app_handle: &AppHandle, state: &str, post_process: bool) {
     // Check if overlay should be shown based on position setting
     let settings = settings::get_settings(app_handle);
     if settings.overlay_position == OverlayPosition::None {
         return;
     }
+
+    // When post-processing will be applied, look up the currently-selected
+    // prompt and include its 1-based index and name in the payload.
+    let (profile_index, profile_name) = if post_process {
+        match settings.post_process_selected_prompt_id.as_ref() {
+            Some(selected_id) => settings
+                .post_process_prompts
+                .iter()
+                .enumerate()
+                .find(|(_, prompt)| prompt.id == *selected_id)
+                .map(|(idx, prompt)| (Some((idx + 1) as u8), Some(prompt.name.clone())))
+                .unwrap_or((None, None)),
+            None => (None, None),
+        }
+    } else {
+        (None, None)
+    };
 
     update_overlay_position(app_handle);
 
@@ -329,23 +358,32 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         #[cfg(target_os = "windows")]
         force_overlay_topmost(&overlay_window);
 
-        let _ = overlay_window.emit("show-overlay", state);
+        let payload = ShowOverlayPayload {
+            state: state.to_string(),
+            profile_index,
+            profile_name,
+        };
+        let _ = overlay_window.emit("show-overlay", payload);
     }
 }
 
-/// Shows the recording overlay window with fade-in animation
-pub fn show_recording_overlay(app_handle: &AppHandle) {
-    show_overlay_state(app_handle, "recording");
+/// Shows the recording overlay window with fade-in animation.
+///
+/// `post_process` should reflect whether this recording will have
+/// post-processing applied, so the overlay can show the active profile badge.
+pub fn show_recording_overlay(app_handle: &AppHandle, post_process: bool) {
+    show_overlay_state(app_handle, "recording", post_process);
 }
 
 /// Shows the transcribing overlay window
-pub fn show_transcribing_overlay(app_handle: &AppHandle) {
-    show_overlay_state(app_handle, "transcribing");
+pub fn show_transcribing_overlay(app_handle: &AppHandle, post_process: bool) {
+    show_overlay_state(app_handle, "transcribing", post_process);
 }
 
 /// Shows the processing overlay window
 pub fn show_processing_overlay(app_handle: &AppHandle) {
-    show_overlay_state(app_handle, "processing");
+    // Processing overlay always implies post-processing; include profile info.
+    show_overlay_state(app_handle, "processing", true);
 }
 
 /// Updates the overlay window position based on current settings
