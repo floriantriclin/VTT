@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## About This Fork
+
+Personal fork of [cjpais/handy](https://github.com/cjpais/handy) — an offline, privacy-first speech-to-text desktop app. The fork is used to develop personal features on top of the upstream project.
+
+**Sync with upstream:**
+```bash
+git remote add upstream https://github.com/cjpais/handy.git
+git fetch upstream
+git merge upstream/main
+```
+
 ## Development Commands
 
 **Prerequisites:** [Rust](https://rustup.rs/) (latest stable), [Bun](https://bun.sh/)
