@@ -13,10 +13,32 @@ import { getLanguageDirection } from "@/lib/utils/rtl";
 
 type OverlayState = "recording" | "transcribing" | "processing";
 
+type ShowOverlayPayload = {
+  state: OverlayState;
+  profile_index: number | null;
+  profile_name: string | null;
+};
+
+// Unicode circled digits ①..⑨ used to display the active post-processing
+// profile index in the overlay's left region.
+const CIRCLED_DIGITS = [
+  "\u2460", // ①
+  "\u2461", // ②
+  "\u2462", // ③
+  "\u2463", // ④
+  "\u2464", // ⑤
+  "\u2465", // ⑥
+  "\u2466", // ⑦
+  "\u2467", // ⑧
+  "\u2468", // ⑨
+];
+
 const RecordingOverlay: React.FC = () => {
   const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
   const [state, setState] = useState<OverlayState>("recording");
+  const [profileIndex, setProfileIndex] = useState<number | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
   const [levels, setLevels] = useState<number[]>(Array(16).fill(0));
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
   const direction = getLanguageDirection(i18n.language);
@@ -24,13 +46,18 @@ const RecordingOverlay: React.FC = () => {
   useEffect(() => {
     const setupEventListeners = async () => {
       // Listen for show-overlay event from Rust
-      const unlistenShow = await listen("show-overlay", async (event) => {
-        // Sync language from settings each time overlay is shown
-        await syncLanguageFromSettings();
-        const overlayState = event.payload as OverlayState;
-        setState(overlayState);
-        setIsVisible(true);
-      });
+      const unlistenShow = await listen<ShowOverlayPayload>(
+        "show-overlay",
+        async (event) => {
+          // Sync language from settings each time overlay is shown
+          await syncLanguageFromSettings();
+          const payload = event.payload;
+          setState(payload.state);
+          setProfileIndex(payload.profile_index ?? null);
+          setProfileName(payload.profile_name ?? null);
+          setIsVisible(true);
+        },
+      );
 
       // Listen for hide-overlay event from Rust
       const unlistenHide = await listen("hide-overlay", () => {
@@ -70,12 +97,32 @@ const RecordingOverlay: React.FC = () => {
     }
   };
 
+  // When a post-processing profile is active, display a circled digit badge
+  // (①..⑨) in place of the default icon so the user can tell at a glance
+  // which profile will be applied.
+  const badgeChar =
+    profileIndex !== null && profileIndex >= 1 && profileIndex <= 9
+      ? CIRCLED_DIGITS[profileIndex - 1]
+      : null;
+
   return (
     <div
       dir={direction}
       className={`recording-overlay ${isVisible ? "fade-in" : ""}`}
     >
-      <div className="overlay-left">{getIcon()}</div>
+      <div className="overlay-left">
+        {badgeChar ? (
+          <span
+            className="profile-badge"
+            title={profileName ?? undefined}
+            aria-label={profileName ?? `Profile ${profileIndex}`}
+          >
+            {badgeChar}
+          </span>
+        ) : (
+          getIcon()
+        )}
+      </div>
 
       <div className="overlay-middle">
         {state === "recording" && (

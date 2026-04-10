@@ -150,6 +150,7 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftText, setDraftText] = useState("");
+  const [draftModel, setDraftModel] = useState("");
 
   const prompts = getSetting("post_process_prompts") || [];
   const selectedPromptId = getSetting("post_process_selected_prompt_id") || "";
@@ -162,15 +163,18 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
     if (selectedPrompt) {
       setDraftName(selectedPrompt.name);
       setDraftText(selectedPrompt.prompt);
+      setDraftModel(selectedPrompt.model ?? "");
     } else {
       setDraftName("");
       setDraftText("");
+      setDraftModel("");
     }
   }, [
     isCreating,
     selectedPromptId,
     selectedPrompt?.name,
     selectedPrompt?.prompt,
+    selectedPrompt?.model,
   ]);
 
   const handlePromptSelect = (promptId: string | null) => {
@@ -182,10 +186,13 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
   const handleCreatePrompt = async () => {
     if (!draftName.trim() || !draftText.trim()) return;
 
+    const modelOverride = draftModel.trim() ? draftModel.trim() : null;
+
     try {
       const result = await commands.addPostProcessPrompt(
         draftName.trim(),
         draftText.trim(),
+        modelOverride,
       );
       if (result.status === "ok") {
         await refreshSettings();
@@ -200,11 +207,14 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
   const handleUpdatePrompt = async () => {
     if (!selectedPromptId || !draftName.trim() || !draftText.trim()) return;
 
+    const modelOverride = draftModel.trim() ? draftModel.trim() : null;
+
     try {
       await commands.updatePostProcessPrompt(
         selectedPromptId,
         draftName.trim(),
         draftText.trim(),
+        modelOverride,
       );
       await refreshSettings();
     } catch (error) {
@@ -229,9 +239,11 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
     if (selectedPrompt) {
       setDraftName(selectedPrompt.name);
       setDraftText(selectedPrompt.prompt);
+      setDraftModel(selectedPrompt.model ?? "");
     } else {
       setDraftName("");
       setDraftText("");
+      setDraftModel("");
     }
   };
 
@@ -239,13 +251,15 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
     setIsCreating(true);
     setDraftName("");
     setDraftText("");
+    setDraftModel("");
   };
 
   const hasPrompts = prompts.length > 0;
   const isDirty =
     !!selectedPrompt &&
     (draftName.trim() !== selectedPrompt.name ||
-      draftText.trim() !== selectedPrompt.prompt.trim());
+      draftText.trim() !== selectedPrompt.prompt.trim() ||
+      draftModel.trim() !== (selectedPrompt.model ?? "").trim());
 
   return (
     <SettingContainer
@@ -322,6 +336,24 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
               </p>
             </div>
 
+            <div className="space-y-2 flex flex-col">
+              <label className="text-sm font-semibold">
+                {t("settings.postProcessing.prompts.modelOverride.label")}
+              </label>
+              <Input
+                type="text"
+                value={draftModel}
+                onChange={(e) => setDraftModel(e.target.value)}
+                placeholder={t(
+                  "settings.postProcessing.prompts.modelOverride.placeholder",
+                )}
+                variant="compact"
+              />
+              <p className="text-xs text-mid-gray/70">
+                {t("settings.postProcessing.prompts.modelOverride.description")}
+              </p>
+            </div>
+
             <div className="flex gap-2 pt-2">
               <Button
                 onClick={handleUpdatePrompt}
@@ -386,6 +418,24 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
                   i18nKey="settings.postProcessing.prompts.promptTip"
                   components={{ code: <code /> }}
                 />
+              </p>
+            </div>
+
+            <div className="space-y-2 flex flex-col">
+              <label className="text-sm font-semibold">
+                {t("settings.postProcessing.prompts.modelOverride.label")}
+              </label>
+              <Input
+                type="text"
+                value={draftModel}
+                onChange={(e) => setDraftModel(e.target.value)}
+                placeholder={t(
+                  "settings.postProcessing.prompts.modelOverride.placeholder",
+                )}
+                variant="compact"
+              />
+              <p className="text-xs text-mid-gray/70">
+                {t("settings.postProcessing.prompts.modelOverride.description")}
               </p>
             </div>
 

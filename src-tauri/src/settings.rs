@@ -91,6 +91,10 @@ pub struct LLMPrompt {
     pub id: String,
     pub name: String,
     pub prompt: String,
+    /// Optional per-prompt model override. When set, this model is used
+    /// instead of the provider's default model for this specific prompt.
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
@@ -633,6 +637,7 @@ fn default_post_process_prompts() -> Vec<LLMPrompt> {
         id: "default_improve_transcriptions".to_string(),
         name: "Improve Transcriptions".to_string(),
         prompt: "Clean this transcript:\n1. Fix spelling, capitalization, and punctuation errors\n2. Convert number words to digits (twenty-five → 25, ten percent → 10%, five dollars → $5)\n3. Replace spoken punctuation with symbols (period → ., comma → ,, question mark → ?)\n4. Remove filler words (um, uh, like as filler)\n5. Keep the language in the original version (if it was french, keep it in french for example)\n\nPreserve exact meaning and word order. Do not paraphrase or reorder content.\n\nReturn only the cleaned transcript.\n\nTranscript:\n${output}".to_string(),
+        model: None,
     }]
 }
 
@@ -753,6 +758,31 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: "escape".to_string(),
         },
     );
+
+    // Default bindings for post-processing profile shortcuts (Ctrl+1..Ctrl+9).
+    // Only the ones with an existing prompt at the corresponding index will
+    // actually be registered at startup (see register_profile_shortcuts).
+    for i in 1..=crate::actions::MAX_PROFILE_SHORTCUTS {
+        #[cfg(target_os = "macos")]
+        let default_profile_binding = format!("cmd+{}", i);
+        #[cfg(not(target_os = "macos"))]
+        let default_profile_binding = format!("ctrl+{}", i);
+
+        let id = crate::actions::profile_binding_id(i);
+        bindings.insert(
+            id.clone(),
+            ShortcutBinding {
+                id,
+                name: format!("Post-Process Profile {}", i),
+                description: format!(
+                    "Transcribe and apply post-processing profile {} (if it exists).",
+                    i
+                ),
+                default_binding: default_profile_binding.clone(),
+                current_binding: default_profile_binding,
+            },
+        );
+    }
 
     AppSettings {
         bindings,

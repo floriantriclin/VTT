@@ -415,7 +415,12 @@
         "createPrompt": "Tạo Prompt",
         "cancel": "Hủy",
         "selectToEdit": "Chọn một prompt ở trên để xem và chỉnh sửa chi tiết.",
-        "createFirst": "Nhấn 'Tạo Prompt mới' ở trên để tạo prompt xử lý sau đầu tiên của bạn."
+        "createFirst": "Nhấn 'Tạo Prompt mới' ở trên để tạo prompt xử lý sau đầu tiên của bạn.",
+        "modelOverride": {
+          "label": "Ghi đè mô hình (tùy chọn)",
+          "placeholder": "ví dụ: gpt-4o-mini",
+          "description": "Khi được đặt, mô hình này sẽ được sử dụng thay cho mô hình mặc định của nhà cung cấp cho prompt này."
+        }
       }
     },
     "history": {
